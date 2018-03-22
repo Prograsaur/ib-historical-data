@@ -151,7 +151,8 @@ class Gui:
     def init_gui(self):
         root = self.root = tki.Tk()
         root.title("IB History Downloader")
-#        root.minsize(240, 240)
+        root.minsize(280, root.winfo_height())
+        root.resizable(True, False)
 
         self.path = Path(root, 0, 'Output dir', './')
         self.file = FileName(root, 1, 'Output file', '')
