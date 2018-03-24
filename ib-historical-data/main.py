@@ -54,11 +54,11 @@ class App(IBClient, EWrapper):
     Mixin of Client (message sender and message loop holder)
     and Wrapper (set of callbacks)
     """
-    def __init__(self, gui_queue):
+    def __init__(self, gui2tws):
         EWrapper.__init__(self)
         IBClient.__init__(self, wrapper=self)
 
-        self.gui_queue = gui_queue
+        self.gui2tws = gui2tws
         self.nKeybInt = 0
         self.started = False
         self._lastId = None
@@ -118,7 +118,7 @@ class App(IBClient, EWrapper):
     def onLoopIteration(self):
         logging.debug('onLoopIteration()')
         try:
-            msg = self.gui_queue.get_nowait()
+            msg = self.gui2tws.get_nowait()
             logging.info(f'GUI MESSAGE: {msg}')
             if msg.startswith('SAVE '):
                 if self._file:
@@ -198,19 +198,19 @@ class App(IBClient, EWrapper):
 def main():
     init_logger('history', logpath=config.logpath, loglevel=config.loglevel)
 
-    q = mp.Queue()
+    gui2tws = mp.Queue()
 
     # Interactive Brokers TWS API has its own infinite message loop and
     # at least one additional thread.
     # Tkinter from its side “doesn’t like” threads and has an infinite loop as well.
     # To resolve this issue each component will run in the separate process
 
-    gui = mp.Process(target=runGui, args=(q,))
+    gui = mp.Process(target=runGui, args=(gui2tws,))
     gui.start()
 
     logging.info('The History Downloader started')
 
-    app = App(q)
+    app = App(gui2tws)
     app.connect('127.0.0.1', config.twsport, clientId=config.clientId)
     logging.info(f'Server version: {app.serverVersion()}, Connection time: {app.twsConnectionTime()}')
     app.run()

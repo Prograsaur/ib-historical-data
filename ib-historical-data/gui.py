@@ -145,8 +145,8 @@ class BarType:
     def value(self): return self.units.var.get()
 
 class Gui:
-    def __init__(self, queue):
-        self.queue = queue
+    def __init__(self, gui2tws):
+        self.gui2tws = gui2tws
 
     def init_gui(self):
         root = self.root = tki.Tk()
@@ -190,15 +190,15 @@ class Gui:
     def onQuit(self):
         from tkinter import messagebox
         if messagebox.askyesno("Quit", "Do you really want to quit?"):
-            self.queue.put('EXIT')
+            self.gui2tws.put('EXIT')
             self.root.destroy()
 
     def onSave(self):
-        self.queue.put(f'SAVE {self.symbol.value}|{self.endDate.value}|{self.duration.value}'
+        self.gui2tws.put(f'SAVE {self.symbol.value}|{self.endDate.value}|{self.duration.value}'
                        f'|{self.barSize.value}|{self.barType.value}|{self.path.value}/{self.file.value}')
 
-def runGui(queue):
-    gui = Gui(queue)
+def runGui(gui2tws):
+    gui = Gui(gui2tws)
     gui.run()
 
 #region main
@@ -207,7 +207,7 @@ if __name__ == '__main__':
     print(__doc__)
     print('This is a python library - not standalone application')
 
-#    runGui(queue.Queue())
+#    runGui(gui2tws.Queue())
     sys.quit(-1)
 #endregion main
  
