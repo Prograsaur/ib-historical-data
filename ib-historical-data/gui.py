@@ -45,7 +45,7 @@ class FileName:
         self.value = default
 
     @property
-    def value(self): return self.entry.get()
+    def value(self): return self.entry['text']
 
     @value.setter
     def value(self, v):
@@ -181,6 +181,8 @@ class Gui:
                            f'{self.duration.value}-{self.barSize.value}-'
                            f'{self.barType.value}.csv')
 
+        self.save['state'] = ('disabled', 'normal')[bool(self.endDate.value and self.symbol.value)]
+
     def run(self):
         self.init_gui()
         self.root.mainloop()
@@ -192,7 +194,8 @@ class Gui:
             self.root.destroy()
 
     def onSave(self):
-        self.queue.put('SAVE ')
+        self.queue.put(f'SAVE {self.symbol.value}|{self.endDate.value}|{self.duration.value}'
+                       f'|{self.barSize.value}|{self.barType.value}|{self.path.value}/{self.file.value}')
 
 def runGui(queue):
     gui = Gui(queue)

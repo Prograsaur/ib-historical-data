@@ -31,12 +31,23 @@ import logging
 from ibapi.wrapper import EWrapper
 from ibapi.contract import Contract
 from ibapi.order import Order
+from ibapi.common import BarData
 
 from config import config
 from gui import runGui
 from logutils import init_logger
 from ibclient import IBClient
 #endregion import
+
+def makeSimpleContract(symbol, secType = "STK", currency = "USD", exchange = "SMART"):
+    contract = Contract()
+    contract.symbol=symbol
+    contract.secType=secType
+    contract.currency=currency
+    contract.exchange=exchange
+
+    return contract
+
 
 class App(IBClient, EWrapper):
     """
@@ -51,6 +62,7 @@ class App(IBClient, EWrapper):
         self.nKeybInt = 0
         self.started = False
         self._lastId = None
+        self._file = None
 
     @property
     def nextId(self):
@@ -100,6 +112,7 @@ class App(IBClient, EWrapper):
         logging.info('Main logic started')
 
     def onStop(self):
+        if self._file: self._file.close()
         logging.info('Main logic stopped')
 
     def onLoopIteration(self):
@@ -108,6 +121,19 @@ class App(IBClient, EWrapper):
             msg = self.gui_queue.get_nowait()
             logging.info(f'GUI MESSAGE: {msg}')
             if msg.startswith('SAVE '):
+                if self._file:
+                    logging.error('Previuos work is still in progress.')
+                msg = msg[5:] # Skip 'SAVE '
+
+                symbol, endDate, duartion, barSize, barType, fileName = msg.split('|')
+                if ' ' not in endDate: endDate += ' 00:00:00'
+
+                self._file = open(fileName, 'w')
+                self._write('Date, Time, Open, Close, Min, Max, Trades, Volume, Average')
+
+                self.reqHistoricalData(self.nextId, makeSimpleContract(symbol),
+                                      endDate, duartion, barSize, barType, 1, 1, False, [])
+
                 # TODO Add message processing here
                 pass
             elif msg == 'EXIT':
@@ -116,6 +142,15 @@ class App(IBClient, EWrapper):
                 logging.error(f'Unknown GUI message: {msg}')
         except queue.Empty:
             pass
+
+        self.count = 0
+
+    def _write(self, msg):
+        if self._file:
+            self._file.write(msg)
+            self._file.write('\n')
+        else:
+            print(msg)
 
     def nextValidId(self, orderId: int):
         """
@@ -128,6 +163,33 @@ class App(IBClient, EWrapper):
 
         self._lastId = orderId - 1
         self._onStart()
+
+    def historicalData(self, reqId: int, bar: BarData):
+        """ returns the requested historical data bars
+
+        reqId    - the request's identifier
+        date     - the bar's date and time (either as a yyyymmss hh:mm:ss
+                   formatted string or as system time according to the request)
+        open     - the bar's open point
+        high     - the bar's high point
+        low      - the bar's low point
+        close    - the bar's closing point
+        volume   - the bar's traded volume if available
+        barCount - the number of trades during the bar's timespan (only available for TRADES).
+        average  - the bar's Weighted Average Price
+        hasGaps  - indicates if the data has gaps or not. """
+
+        EWrapper.historicalData(self, reqId, bar)
+        
+        date, time = bar.date.split()
+        self._write(f'{date}, {time}, {bar.open}, {bar.close}, {bar.low}, {bar.high}, {bar.barCount}, {bar.volume}, {bar.average}')
+
+    def historicalDataEnd(self, reqId:int, start:str, end:str):
+        """ Marks the ending of the historical bars reception. """
+        EWrapper.historicalDataEnd(self, reqId, start, end)
+        if self._file:
+           self._file.close()
+           self._file = None
 
 #endregion Callbacks
 
