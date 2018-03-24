@@ -12,6 +12,7 @@ GUI module
 import sys
 import tkinter as tki
 from tkinter import filedialog
+from tkinter import messagebox
 import tkinter.ttk as ttk
 
 import queue
@@ -76,6 +77,8 @@ class Path:
         self.entry.delete(0, tki.END)
         self.entry.insert(0, v)
 
+_duration2secs = dict(S=1, m=60, H=3600, D=3600*24, W=3600*24*7, M=3600*24*7*30, Y=3600*24*7*365)
+
 class Duration:
     def __init__(self, master, row, text, onChange):
         self.lbl = ttk.Label(master, text=text)
@@ -91,6 +94,10 @@ class Duration:
     @property
     def value(self): return f'{self.entry.get()} {self.units.get()[0].upper()}'
 
+    @property
+    def seconds(self):
+       return int(self.entry.get()) * _duration2secs[self.units.get()[0].upper()]
+
 _barsize = dict(secs  = tuple('1 5 10 15 30'.split()),
                 mins  = tuple('1 2 3 5 10 15 20 30'.split()),
                 hours = tuple('1 2 3 4 8'.split()),
@@ -101,6 +108,7 @@ _barsize = dict(secs  = tuple('1 5 10 15 30'.split()),
 _bartype = tuple('TRADES MIDPOINT BID ASK BID_ASK ADJUSTED_LAST HISTORICAL_VOLATILITY'
                 ' OPTION_IMPLIED_VOLATILITY REBATE_RATE FEE_RATE YIELD_BID YIELD_ASK'
                 ' YIELD_BID_ASK YIELD_LAST'.split())
+
 class BarSize:
     def __init__(self, master, row, text, onChange):
         global _barsize
@@ -132,6 +140,13 @@ class BarSize:
             return f'1 {unit[:-1]}'
         return f'{size} {unit}'
 
+    @property
+    def seconds(self):
+        size = int(self.size.var.get())
+        unit = self.units.var.get()
+        if unit[:3] == 'min': return size * 60
+        return size * _duration2secs[unit[0].upper()]
+
 class BarType:
     def __init__(self, master, row, text, onChange):
         self.lbl = ttk.Label(master, text=text)
@@ -145,8 +160,9 @@ class BarType:
     def value(self): return self.units.var.get()
 
 class Gui:
-    def __init__(self, gui2tws):
+    def __init__(self, gui2tws, tws2gui):
         self.gui2tws = gui2tws
+        self.tws2gui = tws2gui
 
     def init_gui(self):
         root = self.root = tki.Tk()
@@ -168,6 +184,12 @@ class Gui:
         self.quit = ttk.Button(root, text='Quit', command=self.onQuit)
         self.quit.grid(row=7, column=2, sticky=tki.NSEW)
 
+        var = tki.IntVar()
+        self.prgrs = ttk.Progressbar(root, mode='determinate', orient=tki.HORIZONTAL, variable=var)
+        self.prgrs.var = var
+        self.prgrs.grid(row=8, column=0, columnspan=3, sticky=tki.NSEW)
+        var.set(0)
+
         self._onParamChange()
 
         root.columnconfigure(0, weight=0)
@@ -176,12 +198,34 @@ class Gui:
 
         root.protocol("WM_DELETE_WINDOW", self.onQuit)
 
+        self.checkMsgFromTws()
+
     def _onParamChange(self, *args):
         self.file.value = (f'{self.endDate.value}-{self.symbol.value}-'
                            f'{self.duration.value}-{self.barSize.value}-'
                            f'{self.barType.value}.csv')
 
-        self.save['state'] = ('disabled', 'normal')[bool(self.endDate.value and self.symbol.value)]
+        self.save['state'] = ('disabled', 'normal')[bool(
+            self.endDate.value and self.symbol.value and self.prgrs.var.get() == 0)]
+
+    def checkMsgFromTws(self):
+        try:
+            msg = self.tws2gui.get_nowait()
+            if msg.startswith('ERROR'):
+                messagebox.showerror('TWS Error', msg)
+            elif msg.startswith('NEWROW'):
+                self.prgrs.step()
+            elif msg.startswith('END'):
+                self.prgrs.var.set(0)
+                self._onParamChange()
+            else:
+                # TODO: Error here?
+                pass
+                logging.error(f'Unknown GUI message: {msg}')
+        except queue.Empty:
+            pass
+
+        self.root.after(100, self.checkMsgFromTws)
 
     def run(self):
         self.init_gui()
@@ -194,11 +238,19 @@ class Gui:
             self.root.destroy()
 
     def onSave(self):
+        durSecs = self.duration.seconds
+        barSecs = self.barSize.seconds
+        lines = durSecs/barSecs
+        if durSecs >= _duration2secs['W']: lines = int(lines*5/7)
+        self.prgrs['maximum'] = lines
+        self.prgrs.var.set(1)
+        self._onParamChange()
+
         self.gui2tws.put(f'SAVE {self.symbol.value}|{self.endDate.value}|{self.duration.value}'
                        f'|{self.barSize.value}|{self.barType.value}|{self.path.value}/{self.file.value}')
 
-def runGui(gui2tws):
-    gui = Gui(gui2tws)
+def runGui(gui2tws, tws2gui):
+    gui = Gui(gui2tws, tws2gui)
     gui.run()
 
 #region main

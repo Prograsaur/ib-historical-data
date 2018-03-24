@@ -31,7 +31,7 @@ import logging
 from ibapi.wrapper import EWrapper
 from ibapi.contract import Contract
 from ibapi.order import Order
-from ibapi.common import BarData
+from ibapi.common import BarData, TickerId
 
 from config import config
 from gui import runGui
@@ -54,11 +54,12 @@ class App(IBClient, EWrapper):
     Mixin of Client (message sender and message loop holder)
     and Wrapper (set of callbacks)
     """
-    def __init__(self, gui2tws):
+    def __init__(self, gui2tws, tws2gui):
         EWrapper.__init__(self)
         IBClient.__init__(self, wrapper=self)
 
         self.gui2tws = gui2tws
+        self.tws2gui = tws2gui
         self.nKeybInt = 0
         self.started = False
         self._lastId = None
@@ -183,6 +184,7 @@ class App(IBClient, EWrapper):
         
         date, time = bar.date.split()
         self._write(f'{date}, {time}, {bar.open}, {bar.close}, {bar.low}, {bar.high}, {bar.barCount}, {bar.volume}, {bar.average}')
+        self.tws2gui.put('NEWROW')
 
     def historicalDataEnd(self, reqId:int, start:str, end:str):
         """ Marks the ending of the historical bars reception. """
@@ -190,6 +192,14 @@ class App(IBClient, EWrapper):
         if self._file:
            self._file.close()
            self._file = None
+        self.tws2gui.put('END')
+
+    def error(self, reqId:TickerId, errorCode:int, errorString:str):
+        """This event is called when there is an error with the
+        communication or when TWS wants to send a message to the client."""
+        EWrapper.error(self, reqId, errorCode, errorString)
+
+        if errorCode > 0: self.tws2gui.put(f'ERROR {errorCode}: {errorString}')
 
 #endregion Callbacks
 
@@ -199,18 +209,19 @@ def main():
     init_logger('history', logpath=config.logpath, loglevel=config.loglevel)
 
     gui2tws = mp.Queue()
+    tws2gui = mp.Queue()
 
     # Interactive Brokers TWS API has its own infinite message loop and
     # at least one additional thread.
     # Tkinter from its side “doesn’t like” threads and has an infinite loop as well.
     # To resolve this issue each component will run in the separate process
 
-    gui = mp.Process(target=runGui, args=(gui2tws,))
+    gui = mp.Process(target=runGui, args=(gui2tws, tws2gui))
     gui.start()
 
     logging.info('The History Downloader started')
 
-    app = App(gui2tws)
+    app = App(gui2tws, tws2gui)
     app.connect('127.0.0.1', config.twsport, clientId=config.clientId)
     logging.info(f'Server version: {app.serverVersion()}, Connection time: {app.twsConnectionTime()}')
     app.run()
