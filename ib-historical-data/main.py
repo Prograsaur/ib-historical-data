@@ -199,7 +199,8 @@ class App(IBClient, EWrapper):
         communication or when TWS wants to send a message to the client."""
         EWrapper.error(self, reqId, errorCode, errorString)
 
-        if errorCode > 0: self.tws2gui.put(f'ERROR {errorCode}: {errorString}')
+        # Error messages with codes (2104, 2106, 2107, 2108) are not real errors but information messages
+        if errorCode not in (2104, 2106, 2107, 2108): self.tws2gui.put(f'ERROR {errorCode}: {errorString}')
 
 #endregion Callbacks
 
