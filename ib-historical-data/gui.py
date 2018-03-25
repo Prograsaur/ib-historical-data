@@ -77,7 +77,7 @@ class Path:
         self.entry.delete(0, tki.END)
         self.entry.insert(0, v)
 
-_duration2secs = dict(S=1, m=60, H=3600, D=3600*24, W=3600*24*7, M=3600*24*7*30, Y=3600*24*7*365)
+_duration2secs = dict(S=1, m=60, H=3600, D=3600*6.5, W=3600*6.5*5, M=3600*6.5*22, Y=3600*6.5*5*52)
 
 class Duration:
     def __init__(self, master, row, text, onChange):
@@ -210,18 +210,19 @@ class Gui:
 
     def checkMsgFromTws(self):
         try:
-            msg = self.tws2gui.get_nowait()
-            if msg.startswith('ERROR'):
-                messagebox.showerror('TWS Error', msg)
-            elif msg.startswith('NEWROW'):
-                self.prgrs.step()
-            elif msg.startswith('END'):
-                self.prgrs.var.set(0)
-                self._onParamChange()
-            else:
-                # TODO: Error here?
-                pass
-                logging.error(f'Unknown GUI message: {msg}')
+            while not self.tws2gui.empty():
+                msg = self.tws2gui.get_nowait()
+                if msg.startswith('ERROR'):
+                    messagebox.showerror('TWS Error', msg)
+                elif msg.startswith('NEWROW'):
+                    self.prgrs.step()
+                elif msg.startswith('END'):
+                    self.prgrs.var.set(0)
+                    self._onParamChange()
+                else:
+                    # TODO: Error here?
+                    pass
+                    logging.error(f'Unknown GUI message: {msg}')
         except queue.Empty:
             pass
 
