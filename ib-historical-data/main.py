@@ -183,7 +183,7 @@ class App(IBClient, EWrapper):
         EWrapper.historicalData(self, reqId, bar)
         
         date, time = bar.date.split()
-        self._write(f'{date}, {time}, {bar.open}, {bar.close}, {bar.low}, {bar.high}, {bar.barCount}, {bar.volume}, {bar.average}')
+        self._write(f'{date},{time},{bar.open},{bar.close},{bar.low},{bar.high},{bar.barCount},{bar.volume},{bar.average}')
         self.tws2gui.put('NEWROW')
 
     def historicalDataEnd(self, reqId:int, start:str, end:str):
