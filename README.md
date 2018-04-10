@@ -4,6 +4,12 @@ Interactive Brokers TWS API usage example.
 
 TWS API Guide http://interactivebrokers.github.io/tws-api/#gsc.tab=0
 
+## Usage
+
+1. Configure the TWS (see below)
+2. Change ```config.py``` if necessary
+2. Run: ```pythonw main.py```
+
 ## Interactive Brokers Trader Workstation configuration
 
 To allow connection between your application and TWS you have to set several options in the TWS configuration:
